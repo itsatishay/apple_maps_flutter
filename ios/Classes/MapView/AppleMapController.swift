@@ -307,88 +307,368 @@ extension AppleMapController: MKMapViewDelegate {
 }
 
 extension AppleMapController {
-    private func takeSnapshot(options: SnapshotOptions, onCompletion: @escaping (FlutterStandardTypedData?, Error?) -> Void) {
-        // MKMapSnapShotOptions setting.
-        snapShotOptions.region = self.mapView.region
-        snapShotOptions.size = self.mapView.frame.size
-        snapShotOptions.scale = UIScreen.main.scale
-        snapShotOptions.showsBuildings = options.showBuildings
-        snapShotOptions.showsPointsOfInterest = options.showPointsOfInterest
-        
-        // Set MKMapSnapShotOptions to MKMapSnapShotter.
-        snapShot = MKMapSnapshotter(options: snapShotOptions)
-        
-        snapShot?.cancel()
-        
-        if #available(iOS 10.0, *) {
-            snapShot?.start { [weak self] snapshot, error in
-                guard let self = self else {
-                    return
-                }
-                
-                guard let snapshot = snapshot, error == nil else {
-                    onCompletion(nil, error)
-                    return
-                }
-                
-                let image = UIGraphicsImageRenderer(size: self.snapShotOptions.size).image { [weak self] context in
-                    guard let self = self else {
-                        return
-                    }
-                    snapshot.image.draw(at: .zero)
-                    let rect = self.snapShotOptions.mapRect
-                    if options.showAnnotations {
-                        for annotation in self.mapView.getMapViewAnnotations() {
-                            self.drawAnnotations(annotation: annotation, point: snapshot.point(for: annotation!.coordinate))
-                        }
-                    }
-                    if options.showOverlays {
-                        for overlay in self.mapView.overlays {
-                            if ((overlay.intersects?(rect)) != nil) {
-                                self.drawOverlays(overlay: overlay, snapshot: snapshot, context: context)
-                            }
-                        }
-                    }
-                }
+    // Modified takeSnapshot method for AppleMapController.swift
+// This implementation adds support for rendering annotations and overlays in snapshots
 
-                if let imageData = image.pngData() {
-                    onCompletion(FlutterStandardTypedData.init(bytes: imageData), nil)
-                }
-            }
-        }
-    }
+func takeSnapshot(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    // Parse arguments from Flutter
+    let arguments = call.arguments as? [String: Any]
+    let includeAnnotations = arguments?["includeAnnotations"] as? Bool ?? true
+    let includeOverlays = arguments?["includeOverlays"] as? Bool ?? true
     
-    private func drawAnnotations(annotation: FlutterAnnotation?, point: CGPoint) {
-        guard annotation != nil else {
+    // Configure snapshot options
+    let options = MKMapSnapshotter.Options()
+    options.region = mapView.region
+    options.size = mapView.bounds.size
+    options.scale = UIScreen.main.scale
+    options.mapType = mapView.mapType
+    options.showsBuildings = mapView.showsBuildings
+    options.showsPointsOfInterest = mapView.showsPointsOfInterest
+    
+    // Create and start the snapshotter
+    let snapshotter = MKMapSnapshotter(options: options)
+    snapshotter.start { [weak self] snapshot, error in
+        guard let self = self else { return }
+        
+        // Handle errors
+        if let error = error {
+            result(FlutterError(
+                code: "SNAPSHOT_ERROR",
+                message: error.localizedDescription,
+                details: nil
+            ))
             return
         }
-        let annotationView = self.getAnnotationView(annotation: annotation!)
         
-        var offsetPoint = point
+        guard let snapshot = snapshot else {
+            result(FlutterError(
+                code: "SNAPSHOT_ERROR",
+                message: "Snapshot is nil",
+                details: nil
+            ))
+            return
+        }
         
-        offsetPoint.x -= annotationView.bounds.width / 2
-        offsetPoint.y -= annotationView.bounds.height / 2
+        // Start drawing context
+        let image = snapshot.image
+        UIGraphicsBeginImageContextWithOptions(image.size, true, image.scale)
         
+        // Draw the base map image
+        image.draw(at: .zero)
         
-        if #available(iOS 11.0, *), annotationView is MKMarkerAnnotationView {
-            annotationView.drawHierarchy(in: CGRect(x: offsetPoint.x, y: offsetPoint.y, width: annotationView.bounds.width, height: annotationView.bounds.height), afterScreenUpdates: true)
+        guard let context = UIGraphicsGetCurrentContext() else {
+            UIGraphicsEndImageContext()
+            result(FlutterError(
+                code: "SNAPSHOT_ERROR",
+                message: "Failed to get graphics context",
+                details: nil
+            ))
+            return
+        }
+        
+        // Draw overlays (polylines, polygons, etc.) if requested
+        if includeOverlays {
+            self.drawOverlays(on: snapshot, in: context)
+        }
+        
+        // Draw annotations if requested
+        if includeAnnotations {
+            self.drawAnnotations(on: snapshot, in: context)
+        }
+        
+        // Get the final image and clean up
+        let finalImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        
+        // Convert to PNG data and return
+        if let data = finalImage?.pngData() {
+            result(data)
         } else {
-            offsetPoint.x += annotationView.centerOffset.x
-            offsetPoint.y += annotationView.centerOffset.y
-            let annotationImage = annotationView.image
-            annotationImage?.draw(at: offsetPoint)
+            result(FlutterError(
+                code: "SNAPSHOT_ERROR",
+                message: "Failed to convert image to PNG data",
+                details: nil
+            ))
+        }
+    }
+}
+
+// Helper method to draw overlays on the snapshot
+private func drawOverlays(on snapshot: MKMapSnapshotter.Snapshot, in context: CGContext) {
+    for overlay in mapView.overlays {
+        // Handle polylines
+        if let polyline = overlay as? MKPolyline {
+            drawPolyline(polyline, on: snapshot, in: context)
+        }
+        // Handle polygons
+        else if let polygon = overlay as? MKPolygon {
+            drawPolygon(polygon, on: snapshot, in: context)
+        }
+        // Handle circles
+        else if let circle = overlay as? MKCircle {
+            drawCircle(circle, on: snapshot, in: context)
+        }
+    }
+}
+
+// Helper method to draw polylines
+private func drawPolyline(_ polyline: MKPolyline, on snapshot: MKMapSnapshotter.Snapshot, in context: CGContext) {
+    var coords = [CLLocationCoordinate2D](repeating: kCLLocationCoordinate2DInvalid,
+                                          count: polyline.pointCount)
+    polyline.getCoordinates(&coords, range: NSRange(location: 0, length: polyline.pointCount))
+    
+    let path = UIBezierPath()
+    var isFirstPoint = true
+    
+    for coord in coords {
+        // Check if coordinate is valid
+        guard CLLocationCoordinate2DIsValid(coord) else { continue }
+        
+        let point = snapshot.point(for: coord)
+        
+        if isFirstPoint {
+            path.move(to: point)
+            isFirstPoint = false
+        } else {
+            path.addLine(to: point)
         }
     }
     
-    @available(iOS 10.0, *)
-    private func drawOverlays(overlay: MKOverlay?, snapshot: MKMapSnapshotter.Snapshot, context: UIGraphicsRendererContext) {
-        guard overlay != nil else {
-            return
+    // Get the renderer for this polyline to match the actual appearance
+    if let renderer = mapView.renderer(for: polyline) as? MKPolylineRenderer {
+        renderer.strokeColor?.setStroke()
+        path.lineWidth = renderer.lineWidth
+        path.lineJoinStyle = renderer.lineJoin
+        path.lineCapStyle = renderer.lineCap
+        
+        // Apply dash pattern if exists
+        if let pattern = renderer.lineDashPattern {
+            let dashPattern = pattern.map { CGFloat($0.floatValue) }
+            path.setLineDash(dashPattern, count: dashPattern.count, phase: renderer.lineDashPhase)
+        }
+    } else {
+        // Default styling if no renderer found
+        UIColor.systemBlue.setStroke()
+        path.lineWidth = 3
+        path.lineJoinStyle = .round
+        path.lineCapStyle = .round
+    }
+    
+    path.stroke()
+}
+
+// Helper method to draw polygons
+private func drawPolygon(_ polygon: MKPolygon, on snapshot: MKMapSnapshotter.Snapshot, in context: CGContext) {
+    var coords = [CLLocationCoordinate2D](repeating: kCLLocationCoordinate2DInvalid,
+                                          count: polygon.pointCount)
+    polygon.getCoordinates(&coords, range: NSRange(location: 0, length: polygon.pointCount))
+    
+    let path = UIBezierPath()
+    var isFirstPoint = true
+    
+    for coord in coords {
+        guard CLLocationCoordinate2DIsValid(coord) else { continue }
+        
+        let point = snapshot.point(for: coord)
+        
+        if isFirstPoint {
+            path.move(to: point)
+            isFirstPoint = false
+        } else {
+            path.addLine(to: point)
+        }
+    }
+    
+    path.close()
+    
+    // Get the renderer for this polygon to match the actual appearance
+    if let renderer = mapView.renderer(for: polygon) as? MKPolygonRenderer {
+        // Fill
+        if let fillColor = renderer.fillColor {
+            fillColor.setFill()
+            path.fill()
         }
         
-        if let flutterOverlay: FlutterOverlay = overlay as? FlutterOverlay {
-            flutterOverlay.getCAShapeLayer(snapshot: snapshot).render(in: context.cgContext)
+        // Stroke
+        if let strokeColor = renderer.strokeColor {
+            strokeColor.setStroke()
+            path.lineWidth = renderer.lineWidth
+            path.stroke()
+        }
+    } else {
+        // Default styling
+        UIColor.systemBlue.withAlphaComponent(0.3).setFill()
+        UIColor.systemBlue.setStroke()
+        path.fill()
+        path.lineWidth = 2
+        path.stroke()
+    }
+}
+
+// Helper method to draw circles
+private func drawCircle(_ circle: MKCircle, on snapshot: MKMapSnapshotter.Snapshot, in context: CGContext) {
+    let centerPoint = snapshot.point(for: circle.coordinate)
+    
+    // Calculate the radius in points
+    let radiusInMeters = circle.radius
+    let meterRadius = MKMapPointsPerMeterAtLatitude(circle.coordinate.latitude)
+    let radiusInMapPoints = radiusInMeters * meterRadius
+    
+    // Get a point on the edge of the circle to calculate pixel radius
+    let edgeCoordinate = MKMapPoint(centerPoint).coordinate(at: radiusInMeters, bearing: 0)
+    let edgePoint = snapshot.point(for: edgeCoordinate)
+    let radiusInPoints = hypot(edgePoint.x - centerPoint.x, edgePoint.y - centerPoint.y)
+    
+    let circlePath = UIBezierPath(arcCenter: centerPoint,
+                                   radius: radiusInPoints,
+                                   startAngle: 0,
+                                   endAngle: .pi * 2,
+                                   clockwise: true)
+    
+    // Get the renderer for this circle to match the actual appearance
+    if let renderer = mapView.renderer(for: circle) as? MKCircleRenderer {
+        // Fill
+        if let fillColor = renderer.fillColor {
+            fillColor.setFill()
+            circlePath.fill()
         }
         
+        // Stroke
+        if let strokeColor = renderer.strokeColor {
+            strokeColor.setStroke()
+            circlePath.lineWidth = renderer.lineWidth
+            circlePath.stroke()
+        }
+    } else {
+        // Default styling
+        UIColor.systemRed.withAlphaComponent(0.3).setFill()
+        UIColor.systemRed.setStroke()
+        circlePath.fill()
+        circlePath.lineWidth = 2
+        circlePath.stroke()
+    }
+}
+
+// Helper method to draw annotations on the snapshot
+private func drawAnnotations(on snapshot: MKMapSnapshotter.Snapshot, in context: CGContext) {
+    // Sort annotations by latitude (north to south) so southern pins appear on top
+    let sortedAnnotations = mapView.annotations.sorted { 
+        $0.coordinate.latitude > $1.coordinate.latitude 
+    }
+    
+    for annotation in sortedAnnotations {
+        // Skip the user location annotation
+        if annotation is MKUserLocation { continue }
+        
+        let point = snapshot.point(for: annotation.coordinate)
+        
+        // Get or create the annotation view
+        let annotationView = getOrCreateAnnotationView(for: annotation)
+        
+        // Calculate the draw point (center bottom of the pin should be at the coordinate)
+        var drawPoint = point
+        drawPoint.x -= annotationView.bounds.width / 2
+        
+        // Adjust Y position based on the annotation view's centerOffset
+        drawPoint.y -= annotationView.bounds.height
+        drawPoint.y += annotationView.centerOffset.y
+        
+        // Save the current graphics state
+        context.saveGState()
+        
+        // Draw the annotation view
+        context.translateBy(x: drawPoint.x, y: drawPoint.y)
+        
+        // Render the view hierarchy
+        annotationView.layer.render(in: context)
+        
+        // Restore the graphics state
+        context.restoreGState()
+        
+        // Draw callout if needed (optional)
+        if annotationView.isSelected {
+            drawCallout(for: annotation, at: point, on: snapshot)
+        }
+    }
+}
+
+// Helper method to get or create annotation view
+private func getOrCreateAnnotationView(for annotation: MKAnnotation) -> MKAnnotationView {
+    // Try to get existing view from the map
+    if let existingView = mapView.view(for: annotation) {
+        return existingView
+    }
+    
+    // Create appropriate annotation view based on type
+    // Check if this is a marker annotation (you may need to adjust based on your annotation types)
+    if let _ = annotation as? FlutterAnnotation {
+        // Create marker annotation view
+        let markerView = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: nil)
+        
+        // Apply custom styling if available
+        // You'll need to extract these properties from your FlutterAnnotation class
+        markerView.markerTintColor = .red // Default color
+        markerView.glyphText = nil
+        markerView.glyphImage = nil
+        
+        return markerView
+    } else {
+        // Default pin annotation view
+        let pinView = MKPinAnnotationView(annotation: annotation, reuseIdentifier: nil)
+        pinView.pinTintColor = .red
+        return pinView
+    }
+}
+
+// Optional: Helper method to draw callouts
+private func drawCallout(for annotation: MKAnnotation, at point: CGPoint, on snapshot: MKMapSnapshotter.Snapshot) {
+    guard let title = annotation.title ?? nil, !title.isEmpty else { return }
+    
+    let attributes: [NSAttributedString.Key: Any] = [
+        .font: UIFont.systemFont(ofSize: 12),
+        .foregroundColor: UIColor.black,
+        .backgroundColor: UIColor.white
+    ]
+    
+    let size = title.size(withAttributes: attributes)
+    let calloutRect = CGRect(
+        x: point.x - size.width / 2,
+        y: point.y - 40 - size.height,
+        width: size.width + 10,
+        height: size.height + 5
+    )
+    
+    // Draw background
+    UIColor.white.setFill()
+    UIBezierPath(roundedRect: calloutRect, cornerRadius: 5).fill()
+    
+    // Draw border
+    UIColor.black.setStroke()
+    let borderPath = UIBezierPath(roundedRect: calloutRect, cornerRadius: 5)
+    borderPath.lineWidth = 0.5
+    borderPath.stroke()
+    
+    // Draw text
+    title.draw(at: CGPoint(x: calloutRect.minX + 5, y: calloutRect.minY + 2.5), 
+               withAttributes: attributes)
+}
+
+}
+
+// Extension to help with coordinate calculations
+extension MKMapPoint {
+    func coordinate(at distance: CLLocationDistance, bearing: Double) -> CLLocationCoordinate2D {
+        let earthRadius = 6371000.0 // meters
+        let lat1 = self.coordinate.latitude * .pi / 180
+        let lon1 = self.coordinate.longitude * .pi / 180
+        let bearingRad = bearing * .pi / 180
+        
+        let lat2 = asin(sin(lat1) * cos(distance / earthRadius) +
+                       cos(lat1) * sin(distance / earthRadius) * cos(bearingRad))
+        let lon2 = lon1 + atan2(sin(bearingRad) * sin(distance / earthRadius) * cos(lat1),
+                                cos(distance / earthRadius) - sin(lat1) * sin(lat2))
+        
+        return CLLocationCoordinate2D(latitude: lat2 * 180 / .pi, 
+                                      longitude: lon2 * 180 / .pi)
     }
 }
