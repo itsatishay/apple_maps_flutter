@@ -359,17 +359,48 @@ extension AppleMapController {
     }
     
     private func drawAnnotations(annotation: FlutterAnnotation?, point: CGPoint) {
-        guard annotation != nil else {
+        guard let annotation = annotation else {
             return
         }
-        let annotationView = self.getAnnotationView(annotation: annotation!)
-        
+
+        var annotationImage: UIImage?
         var offsetPoint = point
-        
+
+        // CRITICAL FIX: Handle custom bitmap icon from FlutterAnnotation.icon
+        if annotation.icon.iconType == .CUSTOM_FROM_BYTES || annotation.icon.iconType == .CUSTOM_FROM_ASSET {
+            if let customImage = annotation.icon.image {
+                annotationImage = customImage
+
+                // Apply anchor offset if specified
+                let anchor = annotation.anchor
+                offsetPoint.x -= customImage.size.width * CGFloat(anchor.x)
+                offsetPoint.y -= customImage.size.height * CGFloat(anchor.y)
+
+                // Apply alpha if specified
+                if let alpha = annotation.alpha {
+                    UIGraphicsBeginImageContextWithOptions(customImage.size, false, customImage.scale)
+                    if let context = UIGraphicsGetCurrentContext() {
+                        context.setAlpha(CGFloat(alpha))
+                        customImage.draw(at: .zero)
+                        if let alphaImage = UIGraphicsGetImageFromCurrentImageContext() {
+                            annotationImage = alphaImage
+                        }
+                        UIGraphicsEndImageContext()
+                    }
+                }
+
+                // Draw the custom image
+                annotationImage?.draw(at: offsetPoint)
+                return
+            }
+        }
+
+        // Fallback to existing annotation view rendering
+        let annotationView = self.getAnnotationView(annotation: annotation)
+
         offsetPoint.x -= annotationView.bounds.width / 2
         offsetPoint.y -= annotationView.bounds.height / 2
-        
-        
+
         if #available(iOS 11.0, *), annotationView is MKMarkerAnnotationView {
             annotationView.drawHierarchy(in: CGRect(x: offsetPoint.x, y: offsetPoint.y, width: annotationView.bounds.width, height: annotationView.bounds.height), afterScreenUpdates: true)
         } else {
