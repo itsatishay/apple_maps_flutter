@@ -323,6 +323,11 @@ extension AppleMapController {
         snapShotOptions.showsBuildings = options.showBuildings
         snapShotOptions.showsPointsOfInterest = options.showPointsOfInterest
 
+        // Match the map view's appearance in the snapshot
+        if #available(iOS 13.0, *) {
+            snapShotOptions.traitCollection = UITraitCollection(userInterfaceStyle: self.mapView.traitCollection.userInterfaceStyle)
+        }
+
         // Set MKMapSnapShotOptions to MKMapSnapShotter.
         snapShot = MKMapSnapshotter(options: snapShotOptions)
 
