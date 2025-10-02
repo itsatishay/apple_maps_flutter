@@ -201,16 +201,20 @@ class FlutterMapView: MKMapView, UIGestureRecognizerDelegate {
             }
         }
 
+        if let appearance: String = options["appearance"] as? String {
+            self.setMapAppearance(appearance: appearance)
+        }
+
     }
-    
+
     func setUserLocation() {
         let authorizationStatus = CLLocationManager.authorizationStatus()
-        
+
         switch authorizationStatus {
         case .notDetermined:
             locationManager.requestWhenInUseAuthorization()
             break
-            
+
         case .authorizedAlways:
             fallthrough
         case .authorizedWhenInUse:
@@ -220,17 +224,17 @@ class FlutterMapView: MKMapView, UIGestureRecognizerDelegate {
             locationManager.startUpdatingLocation()
             self.showsUserLocation = true
             break
-            
+
         default:
             print("\(authorizationStatus.rawValue) is not supported.")
         }
     }
-    
+
     func removeUserLocation() {
         locationManager.stopUpdatingLocation()
         self.showsUserLocation = false
     }
-    
+
     // Functions used for the mapTrackingButton
     func mapTrackingButton(isVisible visible: Bool) {
         self.isMyLocationButtonShowing = visible
@@ -269,18 +273,18 @@ class FlutterMapView: MKMapView, UIGestureRecognizerDelegate {
             }
         }
     }
-    
+
     @objc func centerMapOnUserButtonClicked() {
        self.setUserTrackingMode(MKUserTrackingMode.follow, animated: true)
     }
-    
+
     func getMapViewAnnotations() -> [FlutterAnnotation?] {
         let flutterAnnotations = self.annotations as? [FlutterAnnotation] ?? []
         let sortedAnnotations = flutterAnnotations.sorted(by: { $0.zIndex  < $1.zIndex })
         return sortedAnnotations
     }
-       
-    
+
+
     // Functions used for GestureRecognition
     private func initialiseTapGestureRecognizers() {
         let panGesture = UIPanGestureRecognizer(target: self, action: #selector(onMapGesture))
@@ -307,7 +311,7 @@ class FlutterMapView: MKMapView, UIGestureRecognizerDelegate {
         self.addGestureRecognizer(doubleTapGesture)
         self.addGestureRecognizer(tapGesture)
     }
-       
+
     @objc func onMapGesture(sender: UIGestureRecognizer) {
         let locationOnMap = self.region.center // self.convert(locationInView, toCoordinateFrom: self)
         let zoom = self.calculatedZoomLevel
@@ -321,7 +325,7 @@ class FlutterMapView: MKMapView, UIGestureRecognizerDelegate {
         if sender.state == .began {
            let locationInView = sender.location(in: self)
            let locationOnMap = self.convert(locationInView, toCoordinateFrom: self)
-           
+
            channel?.invokeMethod("map#onLongPress", arguments: ["position": [locationOnMap.latitude, locationOnMap.longitude]])
         }
     }
@@ -331,22 +335,36 @@ class FlutterMapView: MKMapView, UIGestureRecognizerDelegate {
             TouchHandler.handleMapTaps(tap: tap, overlays: self.overlays, channel: self.channel, in: self)
         }
     }
-    
+
     func updateCameraValues() {
         if oldBounds != nil && oldBounds != CGRect.zero {
             self.updateStoredCameraValues(newZoomLevel: calculatedZoomLevel, newPitch: camera.pitch, newHeading: actualHeading)
         }
     }
-    
+
     // Always allow multiple gestureRecognizers
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
         shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
         return true
     }
-    
+
     func distanceOfCGPoints(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
         let xDist = a.x - b.x
         let yDist = a.y - b.y
         return CGFloat(sqrt(xDist * xDist + yDist * yDist))
     }
+
+    func setMapAppearance(appearance: String) {
+        if #available(iOS 13.0, *) {
+            switch appearance {
+            case "dark":
+                self.overrideUserInterfaceStyle = .dark
+            case "light":
+                self.overrideUserInterfaceStyle = .light
+            default:
+                self.overrideUserInterfaceStyle = .unspecified
+            }
+        }
+    }
 }
+
