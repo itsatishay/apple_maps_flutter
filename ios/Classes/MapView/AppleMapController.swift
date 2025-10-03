@@ -352,7 +352,7 @@ extension AppleMapController {
                     let rect = self.snapShotOptions.mapRect
                     if options.showOverlays {
                         for overlay in self.mapView.overlays {
-                            if overlay.intersects(rect) {
+                            if let intersects = overlay.intersects, intersects(rect) {
                                 self.drawOverlays(overlay: overlay, snapshot: snapshot, context: context)
                             }
                         }

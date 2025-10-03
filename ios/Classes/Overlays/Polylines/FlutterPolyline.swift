@@ -160,8 +160,7 @@ extension FlutterPolyline: FlutterOverlay {
         }
 
         // Optimize by filtering coordinates that are within or near the visible region
-        let mapRect = snapshot.mapRect
-        let filteredCoordinates = filterCoordinatesForMapRect(coordinates: coordinates, mapRect: mapRect)
+        let filteredCoordinates = filterCoordinatesForMapRect(coordinates: coordinates, snapshot: snapshot)
 
         guard !filteredCoordinates.isEmpty else {
             return shapeLayer
@@ -184,31 +183,43 @@ extension FlutterPolyline: FlutterOverlay {
         return shapeLayer
     }
 
-    private func filterCoordinatesForMapRect(coordinates: [CLLocationCoordinate2D], mapRect: MKMapRect) -> [CLLocationCoordinate2D] {
-        // For very long polylines, we need to be smart about which coordinates to include
-        // Expand the map rect slightly to ensure lines crossing the edge are included
-        let expandedRect = mapRect.insetBy(dx: -mapRect.size.width * 0.1, dy: -mapRect.size.height * 0.1)
+    private func filterCoordinatesForMapRect(coordinates: [CLLocationCoordinate2D], snapshot: MKMapSnapshotter.Snapshot) -> [CLLocationCoordinate2D] {
+        // For very long polylines, optimize by checking if points are within the snapshot bounds
+        // We use a simple heuristic: convert first and last points to check if polyline might be visible
 
-        var result: [CLLocationCoordinate2D] = []
-        var previousInside = false
+        // For polylines with many coordinates, sample and filter
+        if coordinates.count > 100 {
+            var result: [CLLocationCoordinate2D] = []
+            let bounds = CGRect(x: 0, y: 0, width: snapshot.image.size.width, height: snapshot.image.size.height)
+            let expandedBounds = bounds.insetBy(dx: -bounds.width * 0.1, dy: -bounds.height * 0.1)
 
-        for i in 0..<coordinates.count {
-            let coordinate = coordinates[i]
-            let point = MKMapPoint(coordinate)
-            let isInside = expandedRect.contains(point)
+            var previousInside = false
 
-            // Include coordinate if:
-            // 1. It's inside the expanded rect
-            // 2. Previous coordinate was inside (to complete the line segment)
-            // 3. Next coordinate will be inside (to start the line segment)
-            if isInside || previousInside || (i + 1 < coordinates.count && expandedRect.contains(MKMapPoint(coordinates[i + 1]))) {
-                result.append(coordinate)
+            for i in 0..<coordinates.count {
+                let coordinate = coordinates[i]
+                let point = snapshot.point(for: coordinate)
+                let isInside = expandedBounds.contains(point)
+
+                // Include coordinate if it's inside or adjacent to inside point
+                if isInside || previousInside || (i + 1 < coordinates.count) {
+                    // For next check, convert it
+                    if i + 1 < coordinates.count {
+                        let nextPoint = snapshot.point(for: coordinates[i + 1])
+                        if isInside || expandedBounds.contains(nextPoint) {
+                            result.append(coordinate)
+                        }
+                    } else if isInside {
+                        result.append(coordinate)
+                    }
+                }
+
+                previousInside = isInside
             }
 
-            previousInside = isInside
+            return result.isEmpty ? coordinates : result
         }
 
-        return result
+        return coordinates
     }
 }
 
