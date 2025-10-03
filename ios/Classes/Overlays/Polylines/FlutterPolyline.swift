@@ -150,19 +150,29 @@ extension FlutterPolyline: FlutterOverlay {
     func getCAShapeLayer(snapshot: MKMapSnapshotter.Snapshot) -> CAShapeLayer {
         let path = UIBezierPath()
         let shapeLayer = CAShapeLayer()
-        
+
         if !(self.isVisible ?? true) {
             return shapeLayer
         }
-            
 
-        // Thus we use snapshot.point() to save the pain.
-        path.move(to: snapshot.point(for: self.coordinates![0]))
-        for coordinate in self.coordinates! {
-            path.addLine(to: snapshot.point(for: coordinate))
-            path.move(to: snapshot.point(for: coordinate))
+        guard let coordinates = self.coordinates, !coordinates.isEmpty else {
+            return shapeLayer
         }
-        
+
+        // Optimize by filtering coordinates that are within or near the visible region
+        let mapRect = snapshot.mapRect
+        let filteredCoordinates = filterCoordinatesForMapRect(coordinates: coordinates, mapRect: mapRect)
+
+        guard !filteredCoordinates.isEmpty else {
+            return shapeLayer
+        }
+
+        // Efficiently construct the path - move once, then add lines
+        path.move(to: snapshot.point(for: filteredCoordinates[0]))
+        for i in 1..<filteredCoordinates.count {
+            path.addLine(to: snapshot.point(for: filteredCoordinates[i]))
+        }
+
         shapeLayer.path = path.cgPath
         shapeLayer.lineWidth = self.width ?? 0
         shapeLayer.lineCap = self.caShapeLayerLineCap
@@ -170,8 +180,35 @@ extension FlutterPolyline: FlutterOverlay {
         shapeLayer.lineDashPattern = self.pattern
         shapeLayer.strokeColor = self.color?.cgColor ?? UIColor.clear.cgColor
         shapeLayer.fillColor = UIColor.clear.cgColor
-        
+
         return shapeLayer
+    }
+
+    private func filterCoordinatesForMapRect(coordinates: [CLLocationCoordinate2D], mapRect: MKMapRect) -> [CLLocationCoordinate2D] {
+        // For very long polylines, we need to be smart about which coordinates to include
+        // Expand the map rect slightly to ensure lines crossing the edge are included
+        let expandedRect = mapRect.insetBy(dx: -mapRect.size.width * 0.1, dy: -mapRect.size.height * 0.1)
+
+        var result: [CLLocationCoordinate2D] = []
+        var previousInside = false
+
+        for i in 0..<coordinates.count {
+            let coordinate = coordinates[i]
+            let point = MKMapPoint(coordinate)
+            let isInside = expandedRect.contains(point)
+
+            // Include coordinate if:
+            // 1. It's inside the expanded rect
+            // 2. Previous coordinate was inside (to complete the line segment)
+            // 3. Next coordinate will be inside (to start the line segment)
+            if isInside || previousInside || (i + 1 < coordinates.count && expandedRect.contains(MKMapPoint(coordinates[i + 1]))) {
+                result.append(coordinate)
+            }
+
+            previousInside = isInside
+        }
+
+        return result
     }
 }
 

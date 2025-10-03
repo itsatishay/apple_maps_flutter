@@ -50,28 +50,31 @@ extension FlutterPolygon: FlutterOverlay {
     func getCAShapeLayer(snapshot: MKMapSnapshotter.Snapshot) -> CAShapeLayer {
         let path = UIBezierPath()
         let shapeLayer = CAShapeLayer()
-        
+
         if !(self.isVisible ?? true) {
             return shapeLayer
         }
-            
 
-        // Thus we use snapshot.point() to save the pain.
-        path.move(to: snapshot.point(for: self.coordinates![0]))
-        for coordinate in self.coordinates! {
-            path.addLine(to: snapshot.point(for: coordinate))
+        guard let coordinates = self.coordinates, !coordinates.isEmpty else {
+            return shapeLayer
         }
-        
-        path.addLine(to: snapshot.point(for: self.coordinates![0]))
+
+        // Efficiently construct the path - move once, then add lines
+        path.move(to: snapshot.point(for: coordinates[0]))
+        for i in 1..<coordinates.count {
+            path.addLine(to: snapshot.point(for: coordinates[i]))
+        }
+
+        path.addLine(to: snapshot.point(for: coordinates[0]))
         path.close()
-        
+
         shapeLayer.path = path.cgPath
         shapeLayer.lineWidth = self.width ?? 0
         shapeLayer.strokeColor = self.strokeColor?.cgColor ?? UIColor.clear.cgColor
         shapeLayer.fillColor = self.fillColor?.cgColor ?? UIColor.clear.cgColor
         shapeLayer.lineCap = .round
         shapeLayer.lineJoin = .round
-        
+
         return shapeLayer
     }
 }
