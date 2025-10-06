@@ -302,6 +302,25 @@ extension AppleMapController: MKMapViewDelegate {
         self.channel.invokeMethod("camera#onMoveStarted", arguments: "")
     }
 
+    // Update annotation rotation when map region changes
+    public func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
+        let headingInRadians = mapView.camera.heading * Double.pi / 180
+
+        for annotation in mapView.annotations {
+            if let flutterAnnotation = annotation as? FlutterAnnotation {
+                if let annotationView = mapView.view(for: annotation) {
+                    // Only counter-rotate if the annotation has rotation disabled
+                    if !flutterAnnotation.rotationEnabled {
+                        annotationView.transform = CGAffineTransform(rotationAngle: -headingInRadians)
+                    } else {
+                        // Reset transform for annotations that should rotate with the map
+                        annotationView.transform = .identity
+                    }
+                }
+            }
+        }
+    }
+
     public func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
         if overlay is FlutterPolyline {
             return self.polylineRenderer(overlay: overlay)

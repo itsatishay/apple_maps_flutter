@@ -20,6 +20,7 @@ class FlutterMapView: MKMapView, UIGestureRecognizerDelegate {
     var oldBounds: CGRect?
     var options: Dictionary<String, Any>?
     var isMyLocationButtonShowing: Bool? = false
+    var annotationRotationEnabled: Bool = true
     
     fileprivate let locationManager: CLLocationManager = CLLocationManager()
     
@@ -203,6 +204,10 @@ class FlutterMapView: MKMapView, UIGestureRecognizerDelegate {
 
         if let appearance: String = options["appearance"] as? String {
             self.setMapAppearance(appearance: appearance)
+        }
+
+        if let annotationRotationEnabled: Bool = options["annotationRotationEnabled"] as? Bool {
+            self.annotationRotationEnabled = annotationRotationEnabled
         }
 
     }

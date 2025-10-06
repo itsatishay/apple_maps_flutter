@@ -43,6 +43,7 @@ class AppleMap extends StatefulWidget {
     this.onLongPress,
     this.snapshotOptions,
     this.insetsLayoutMarginsFromSafeArea = true,
+    this.annotationRotationEnabled = true,
   }) : super(key: key);
 
   final MapCreatedCallback? onMapCreated;
@@ -169,6 +170,12 @@ class AppleMap extends StatefulWidget {
   /// A Boolean value indicating whether the view's layout margins are updated
   /// automatically to reflect the safe area.
   final bool insetsLayoutMarginsFromSafeArea;
+
+  /// True if annotations should rotate with the map when the map is rotated.
+  ///
+  /// When false, annotations will maintain their orientation regardless of map rotation.
+  /// This can be overridden on a per-annotation basis using [Annotation.rotationEnabled].
+  final bool annotationRotationEnabled;
 
   @override
   State createState() => _AppleMapState();
@@ -342,6 +349,7 @@ class _AppleMapOptions {
     this.myLocationButtonEnabled,
     this.padding,
     this.insetsLayoutMarginsFromSafeArea,
+    this.annotationRotationEnabled,
   });
 
   static _AppleMapOptions fromWidget(AppleMap map) {
@@ -359,6 +367,7 @@ class _AppleMapOptions {
       myLocationButtonEnabled: map.myLocationButtonEnabled,
       padding: map.padding,
       insetsLayoutMarginsFromSafeArea: map.insetsLayoutMarginsFromSafeArea,
+      annotationRotationEnabled: map.annotationRotationEnabled,
     );
   }
 
@@ -388,6 +397,8 @@ class _AppleMapOptions {
 
   final bool? insetsLayoutMarginsFromSafeArea;
 
+  final bool? annotationRotationEnabled;
+
   Map<String, dynamic> toMap() {
     final Map<String, dynamic> optionsMap = <String, dynamic>{};
 
@@ -411,6 +422,7 @@ class _AppleMapOptions {
     addIfNonNull('padding', _serializePadding(padding));
     addIfNonNull(
         'insetsLayoutMarginsFromSafeArea', insetsLayoutMarginsFromSafeArea);
+    addIfNonNull('annotationRotationEnabled', annotationRotationEnabled);
     return optionsMap;
   }
 

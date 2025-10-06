@@ -155,6 +155,7 @@ class Annotation {
     this.visible = true,
     this.zIndex = -1,
     this.onDragEnd,
+    this.rotationEnabled = true,
   }) : assert(0.0 <= alpha && alpha <= 1.0);
 
   /// Uniquely identifies a [Annotation].
@@ -201,6 +202,12 @@ class Annotation {
   /// earlier, and thus appearing to be closer to the surface of the Earth.
   double zIndex;
 
+  /// Whether the annotation should rotate with the map.
+  ///
+  /// When false, the annotation will remain fixed in orientation even when the
+  /// map is rotated. When true, the annotation rotates with the map (default behavior).
+  final bool rotationEnabled;
+
   /// Creates a new [Annotation] object whose values are the same as this instance,
   /// unless overwritten by the specified parameters.
   Annotation copyWith({
@@ -215,6 +222,7 @@ class Annotation {
     double? zIndexParam,
     VoidCallback? onTapParam,
     ValueChanged<LatLng>? onDragEndParam,
+    bool? rotationEnabledParam,
   }) {
     return Annotation(
       annotationId: annotationId,
@@ -228,6 +236,7 @@ class Annotation {
       visible: visibleParam ?? visible,
       zIndex: zIndexParam ?? zIndex,
       onDragEnd: onDragEndParam ?? onDragEnd,
+      rotationEnabled: rotationEnabledParam ?? rotationEnabled,
     );
   }
 
@@ -249,6 +258,7 @@ class Annotation {
     addIfPresent('visible', visible);
     addIfPresent('position', position._toJson());
     addIfPresent('zIndex', zIndex);
+    addIfPresent('rotationEnabled', rotationEnabled);
     return json;
   }
 
@@ -265,7 +275,8 @@ class Annotation {
         infoWindow == typedOther.infoWindow &&
         position == typedOther.position &&
         visible == typedOther.visible &&
-        zIndex == typedOther.zIndex;
+        zIndex == typedOther.zIndex &&
+        rotationEnabled == typedOther.rotationEnabled;
   }
 
   @override

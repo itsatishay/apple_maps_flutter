@@ -76,6 +76,14 @@ extension AppleMapController: AnnotationDelegate {
         annotationView!.alpha = CGFloat(annotation.alpha ?? 1.00)
         annotationView!.isDraggable = annotation.isDraggable ?? false
 
+        // Apply initial rotation transform based on annotation's rotationEnabled setting
+        if !annotation.rotationEnabled {
+            let headingInRadians = self.mapView.camera.heading * Double.pi / 180
+            annotationView!.transform = CGAffineTransform(rotationAngle: -headingInRadians)
+        } else {
+            annotationView!.transform = .identity
+        }
+
         return annotationView!
     }
 
@@ -215,11 +223,22 @@ extension AppleMapController: AnnotationDelegate {
                 oldAnnotation.title = annotation.title
                 oldAnnotation.subtitle = annotation.subtitle
             })
-            
+
+            // Update rotationEnabled property
+            oldAnnotation.rotationEnabled = annotation.rotationEnabled
+
             // Update the annotation view with the new image
             if let view = self.mapView.view(for: oldAnnotation) {
                 let newAnnotationView = getAnnotationView(annotation: annotation)
                 view.image = newAnnotationView.image
+
+                // Update transform based on rotationEnabled setting
+                if !annotation.rotationEnabled {
+                    let headingInRadians = self.mapView.camera.heading * Double.pi / 180
+                    view.transform = CGAffineTransform(rotationAngle: -headingInRadians)
+                } else {
+                    view.transform = .identity
+                }
             }
         }
     }
