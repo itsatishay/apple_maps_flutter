@@ -344,7 +344,14 @@ extension AppleMapController {
 
         // Match the map view's appearance in the snapshot
         if #available(iOS 13.0, *) {
-            snapShotOptions.traitCollection = UITraitCollection(userInterfaceStyle: self.mapView.traitCollection.userInterfaceStyle)
+            if let darkMode = options.darkMode {
+                // Use the specified appearance mode
+                let userInterfaceStyle: UIUserInterfaceStyle = darkMode ? .dark : .light
+                snapShotOptions.traitCollection = UITraitCollection(userInterfaceStyle: userInterfaceStyle)
+            } else {
+                // Use the current map view's appearance
+                snapShotOptions.traitCollection = UITraitCollection(userInterfaceStyle: self.mapView.traitCollection.userInterfaceStyle)
+            }
         }
 
         // Set MKMapSnapShotOptions to MKMapSnapShotter.

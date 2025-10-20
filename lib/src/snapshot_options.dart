@@ -6,18 +6,21 @@ class SnapshotOptions {
     this.showPointsOfInterest = true,
     this.showAnnotations = true,
     this.showOverlays = true,
+    this.darkMode,
   });
 
   final bool showBuildings;
   final bool showPointsOfInterest;
   final bool showAnnotations;
   final bool showOverlays;
+  final bool? darkMode;
 
-  dynamic _toMap() => <String, bool>{
+  dynamic _toMap() => <String, dynamic>{
         'showBuildings': showBuildings,
         'showPointsOfInterest': showPointsOfInterest,
         'showAnnotations': showAnnotations,
         'showOverlays': showOverlays,
+        if (darkMode != null) 'darkMode': darkMode,
       };
 
   @visibleForTesting
@@ -30,6 +33,7 @@ class SnapshotOptions {
       showPointsOfInterest: json['showPointsOfInterest'],
       showAnnotations: json['showAnnotations'],
       showOverlays: json['showOverlays'],
+      darkMode: json['darkMode'],
     );
   }
 
@@ -41,13 +45,14 @@ class SnapshotOptions {
     return showBuildings == typedOther.showBuildings &&
         showPointsOfInterest == typedOther.showPointsOfInterest &&
         showAnnotations == typedOther.showAnnotations &&
-        showOverlays == typedOther.showOverlays;
+        showOverlays == typedOther.showOverlays &&
+        darkMode == typedOther.darkMode;
   }
 
   @override
-  int get hashCode => Object.hash(showBuildings, showPointsOfInterest);
+  int get hashCode => Object.hash(showBuildings, showPointsOfInterest, showAnnotations, showOverlays, darkMode);
 
   @override
   String toString() =>
-      'SnapshotOptions(showBuildings: $showBuildings, showPointsOfInterest: $showPointsOfInterest, showAnnotations: $showAnnotations, showOverlays: $showOverlays)';
+      'SnapshotOptions(showBuildings: $showBuildings, showPointsOfInterest: $showPointsOfInterest, showAnnotations: $showAnnotations, showOverlays: $showOverlays, darkMode: $darkMode)';
 }
