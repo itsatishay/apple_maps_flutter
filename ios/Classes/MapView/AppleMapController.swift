@@ -401,7 +401,7 @@ extension AppleMapController {
         guard annotation != nil else {
             return
         }
-        let annotationView = self.getAnnotationView(annotation: annotation!)
+        let annotationView = self.mapView.view(for: annotation!) ?? self.getAnnotationView(annotation: annotation!)
 
         var offsetPoint = point
 
