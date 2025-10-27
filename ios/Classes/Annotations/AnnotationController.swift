@@ -220,14 +220,32 @@ extension AppleMapController: AnnotationDelegate {
      - Parameter annotation: the FlutterAnnotation that should be added
      */
     private func addAnnotation(annotation: FlutterAnnotation) {
+        var wasSelected = false
         if self.annotationExists(with: annotation.id) {
+            // Check if the annotation to be replaced is currently selected
+            if let existingAnnotation = self.getAnnotation(with: annotation.id) {
+                wasSelected = self.mapView.selectedAnnotations.contains(where: { $0 as? FlutterAnnotation == existingAnnotation })
+                if wasSelected {
+                    // Deselect before removing to prevent auto-reselection
+                    self.mapView.deselectAnnotation(existingAnnotation, animated: false)
+                }
+            }
             self.removeAnnotation(id: annotation.id)
         }
         if annotation.zIndex == -1 {
             annotation.zIndex = self.getNextAnnotationZIndex()
             channel.invokeMethod("annotation#onZIndexChanged", arguments: ["annotationId": annotation.id!, "zIndex": annotation.zIndex])
         }
+        // Mark as programmatically selected to prevent spurious tap events during addition
+        annotation.selectedProgrammatically = true
         self.mapView.addAnnotation(annotation)
+        // Check if the annotation was actually selected after adding
+        // If not selected, reset the flag immediately so user taps work normally
+        let isSelected = self.mapView.selectedAnnotations.contains(where: { $0 as? FlutterAnnotation == annotation })
+        if !isSelected {
+            annotation.selectedProgrammatically = false
+        }
+        // Note: If the annotation WAS auto-selected, didSelect will be called and will reset the flag
     }
 
     private func updateAnnotation(annotation: FlutterAnnotation) {
