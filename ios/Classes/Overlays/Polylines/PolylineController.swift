@@ -34,34 +34,47 @@ extension AppleMapController: PolylineDelegate {
 
     func addPolylines(polylineData data: NSArray) {
         for _polyline in data {
-            let polylineData :Dictionary<String, Any> = _polyline as! Dictionary<String, Any>
+            guard let polylineData = _polyline as? Dictionary<String, Any> else {
+                NSLog("AppleMaps: Invalid polyline data in addPolylines")
+                continue
+            }
             let polyline = FlutterPolyline(fromDictionaray: polylineData)
             addPolyline(polyline: polyline)
         }
     }
 
     func changePolylines(polylineData data: NSArray) {
-        let oldOverlays: [MKOverlay] = self.mapView.overlays
-        for oldOverlay in oldOverlays {
-            if oldOverlay is FlutterPolyline {
-                let oldFlutterPolyline = oldOverlay as! FlutterPolyline
-                for _polyline in data {
-                    let polylineData :Dictionary<String, Any> = _polyline as! Dictionary<String, Any>
-                    if oldFlutterPolyline.id == (polylineData["polylineId"] as! String) {
-                        let newPolyline = FlutterPolyline.init(fromDictionaray: polylineData)
-                        if oldFlutterPolyline != newPolyline {
-                            updatePolylinesOnMap(oldPolyline: oldFlutterPolyline, newPolyline: newPolyline)
-                        }
-                    }
+        // Create a dictionary of existing polylines by ID for O(1) lookup
+        var existingPolylines: [String: FlutterPolyline] = [:]
+        for overlay in self.mapView.overlays {
+            if let flutterPolyline = overlay as? FlutterPolyline, let id = flutterPolyline.id {
+                existingPolylines[id] = flutterPolyline
+            }
+        }
+
+        // Process each polyline change
+        for _polyline in data {
+            guard let polylineData = _polyline as? Dictionary<String, Any>,
+                  let polylineId = polylineData["polylineId"] as? String else {
+                NSLog("AppleMaps: Invalid polyline data in changePolylines")
+                continue
+            }
+
+            if let oldFlutterPolyline = existingPolylines[polylineId] {
+                let newPolyline = FlutterPolyline.init(fromDictionaray: polylineData)
+                if oldFlutterPolyline != newPolyline {
+                    updatePolylinesOnMap(oldPolyline: oldFlutterPolyline, newPolyline: newPolyline)
                 }
+            } else {
+                NSLog("AppleMaps: Polyline with ID '\(polylineId)' not found for update")
             }
         }
     }
 
     func removePolylines(polylineIds: NSArray) {
         for overlay in self.mapView.overlays {
-            if let polyline = overlay as? FlutterPolyline {
-                if polylineIds.contains(polyline.id!) {
+            if let polyline = overlay as? FlutterPolyline, let id = polyline.id {
+                if polylineIds.contains(id) {
                     self.mapView.removeOverlay(polyline)
                 }
             }

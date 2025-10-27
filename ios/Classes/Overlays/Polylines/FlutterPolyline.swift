@@ -137,8 +137,30 @@ class FlutterPolyline: MKPolyline {
     }
     
     static func == (lhs: FlutterPolyline, rhs: FlutterPolyline) -> Bool {
-        return lhs.color == rhs.color && lhs.isConsumingTapEvents == rhs.isConsumingTapEvents && lhs.width ==  rhs.width
-            && lhs.isVisible == rhs.isVisible && lhs.capType == rhs.capType && lhs.pattern == rhs.pattern && lhs.lineJoin == rhs.lineJoin && rhs.zIndex == lhs.zIndex && lhs.coordinate.latitude == rhs.coordinate.latitude && lhs.coordinate.longitude == rhs.coordinate.longitude
+        // First check simple properties
+        guard lhs.color == rhs.color && lhs.isConsumingTapEvents == rhs.isConsumingTapEvents && lhs.width == rhs.width
+            && lhs.isVisible == rhs.isVisible && lhs.capType == rhs.capType && lhs.pattern == rhs.pattern
+            && lhs.lineJoin == rhs.lineJoin && rhs.zIndex == lhs.zIndex else {
+            return false
+        }
+
+        // Check if coordinates arrays exist and have same count
+        guard let lhsCoords = lhs.coordinates, let rhsCoords = rhs.coordinates else {
+            return lhs.coordinates == nil && rhs.coordinates == nil
+        }
+
+        if lhsCoords.count != rhsCoords.count {
+            return false
+        }
+
+        // Compare all coordinates, not just the first one
+        for i in 0..<lhsCoords.count {
+            if lhsCoords[i].latitude != rhsCoords[i].latitude || lhsCoords[i].longitude != rhsCoords[i].longitude {
+                return false
+            }
+        }
+
+        return true
     }
     
     static func != (lhs: FlutterPolyline, rhs: FlutterPolyline) -> Bool {

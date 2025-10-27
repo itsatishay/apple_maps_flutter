@@ -89,16 +89,32 @@ extension AppleMapController: AnnotationDelegate {
 
     func annotationsToAdd(annotations: NSArray) {
         for annotation in annotations {
-            let annotationData: Dictionary<String, Any> = annotation as! Dictionary<String, Any>
+            guard let annotationData = annotation as? Dictionary<String, Any> else {
+                NSLog("AppleMaps: Invalid annotation data in annotationsToAdd")
+                continue
+            }
             addAnnotation(annotationData: annotationData)
         }
     }
 
     func annotationsToChange(annotations: NSArray) {
-        let oldAnnotations: [MKAnnotation] = self.mapView.annotations
+        // Create a dictionary of existing annotations by ID for O(1) lookup
+        var existingAnnotations: [String: FlutterAnnotation] = [:]
+        for annotation in self.mapView.annotations {
+            if let flutterAnnotation = annotation as? FlutterAnnotation {
+                existingAnnotations[flutterAnnotation.id] = flutterAnnotation
+            }
+        }
+
+        // Process each annotation change
         for annotation in annotations {
-            let annotationData: Dictionary<String, Any> = annotation as! Dictionary<String, Any>
-            if let annotationToChange = oldAnnotations.filter({($0 as? FlutterAnnotation)?.id == annotationData["annotationId"] as? String})[0] as? FlutterAnnotation {
+            guard let annotationData = annotation as? Dictionary<String, Any>,
+                  let annotationId = annotationData["annotationId"] as? String else {
+                NSLog("AppleMaps: Invalid annotation data in annotationsToChange")
+                continue
+            }
+
+            if let annotationToChange = existingAnnotations[annotationId] {
                 let newAnnotation = FlutterAnnotation.init(fromDictionary: annotationData, registrar: registrar)
                 if annotationToChange != newAnnotation {
                     if !annotationToChange.wasDragged {
@@ -107,6 +123,8 @@ extension AppleMapController: AnnotationDelegate {
                         annotationToChange.wasDragged = false
                     }
                 }
+            } else {
+                NSLog("AppleMaps: Annotation with ID '\(annotationId)' not found for update")
             }
         }
     }
