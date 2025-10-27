@@ -331,6 +331,8 @@ extension AppleMapController: AnnotationDelegate {
         let id: String = annotation.id
         annotation.zIndex = self.getNextAnnotationZIndex()
         channel.invokeMethod("annotation#onZIndexChanged", arguments: ["annotationId": id, "zIndex": annotation.zIndex])
+        // Set selectedProgrammatically BEFORE re-adding to prevent spurious tap events
+        annotation.selectedProgrammatically = true
         self.addAnnotation(annotation: annotation)
         self.selectAnnotation(with: id)
     }
