@@ -25,7 +25,8 @@ class FlutterAnnotation: NSObject, MKAnnotation {
     var icon: AnnotationIcon = AnnotationIcon.init()
     var selectedProgrammatically: Bool = false
     var rotationEnabled: Bool = true
-    
+    var createdAt: Date = Date()
+
     public init(fromDictionary annotationData: Dictionary<String, Any>, registrar: FlutterPluginRegistrar) {
         let position: Array<Double> = annotationData["position"] as! Array<Double>
         let infoWindow: Dictionary<String, Any> = annotationData["infoWindow"] as! Dictionary<String, Any>

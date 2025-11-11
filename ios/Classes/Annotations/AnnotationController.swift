@@ -13,6 +13,16 @@ extension AppleMapController: AnnotationDelegate {
     public func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView)  {
         if let annotation: FlutterAnnotation = view.annotation as? FlutterAnnotation  {
             self.currentlySelectedAnnotation = annotation.id
+
+            // Check if annotation was just created (within 200ms)
+            // This prevents the tap event that created the annotation from also triggering the annotation's onTap callback
+            let timeSinceCreation = Date().timeIntervalSince(annotation.createdAt)
+            if timeSinceCreation < 0.2 {
+                // Annotation was just created, deselect it and ignore the tap
+                mapView.deselectAnnotation(annotation, animated: false)
+                return
+            }
+
             if !annotation.selectedProgrammatically {
                 if !self.isAnnotationInFront(zIndex: annotation.zIndex) {
                     self.moveToFront(annotation: annotation)
